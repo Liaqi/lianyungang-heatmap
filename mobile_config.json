@@ -1,0 +1,8 @@
+{
+  "mobile_optimized": true,
+  "touch_enabled": true,
+  "gesture_support": true,
+  "responsive_design": true,
+  "offline_support": false,
+  "cache_strategy": "no-cache"
+}

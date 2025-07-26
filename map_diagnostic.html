@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地图问题诊断工具</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .diagnostic-panel {
+            width: 400px;
+            background: #f5f5f5;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .status {
+            background: #333;
+            color: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .test-item {
+            background: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #007cba;
+        }
+        .test-item.success {
+            border-left-color: #28a745;
+        }
+        .test-item.error {
+            border-left-color: #dc3545;
+        }
+        .test-item.warning {
+            border-left-color: #ffc107;
+        }
+        .btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #005a87;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="diagnostic-panel">
+            <h2>地图问题诊断工具</h2>
+            
+            <div class="status" id="overall-status">正在初始化诊断...</div>
+            
+            <div class="test-item" id="test-leaflet">
+                <h4>Leaflet库测试</h4>
+                <p>检查Leaflet库是否正确加载</p>
+                <button class="btn" onclick="testLeaflet()">测试</button>
+            </div>
+            
+            <div class="test-item" id="test-network">
+                <h4>网络连接测试</h4>
+                <p>检查网络连接和地图服务访问</p>
+                <button class="btn" onclick="testNetwork()">测试</button>
+            </div>
+            
+            <div class="test-item" id="test-map-sources">
+                <h4>地图源测试</h4>
+                <p>测试各个地图源的可用性</p>
+                <button class="btn" onclick="testMapSources()">测试</button>
+            </div>
+            
+            <div class="test-item" id="test-browser">
+                <h4>浏览器兼容性测试</h4>
+                <p>检查浏览器是否支持必要功能</p>
+                <button class="btn" onclick="testBrowser()">测试</button>
+            </div>
+            
+            <div class="test-item" id="test-data">
+                <h4>数据加载测试</h4>
+                <p>测试数据文件是否能正常加载</p>
+                <button class="btn" onclick="testData()">测试</button>
+            </div>
+            
+            <button class="btn" onclick="runAllTests()" style="background: #28a745;">运行所有测试</button>
+            
+            <div class="log" id="log">
+                <strong>诊断日志:</strong><br>
+                <div id="log-content"></div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let testResults = {};
+
+        function log(message, type = 'info') {
+            const logContent = document.getElementById('log-content');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : type === 'warning' ? 'orange' : 'black';
+            logContent.innerHTML += `<div style="color: ${color};">[${timestamp}] ${message}</div>`;
+            logContent.scrollTop = logContent.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateTestStatus(testId, status, message) {
+            const testItem = document.getElementById(testId);
+            testItem.className = `test-item ${status}`;
+            testItem.querySelector('p').textContent = message;
+            testResults[testId] = status;
+        }
+
+        function testLeaflet() {
+            log('开始测试Leaflet库...');
+            
+            try {
+                if (typeof L !== 'undefined') {
+                    log('✓ Leaflet库加载成功', 'success');
+                    updateTestStatus('test-leaflet', 'success', 'Leaflet库加载成功');
+                } else {
+                    throw new Error('Leaflet未定义');
+                }
+            } catch (error) {
+                log(`✗ Leaflet库测试失败: ${error.message}`, 'error');
+                updateTestStatus('test-leaflet', 'error', `Leaflet库测试失败: ${error.message}`);
+            }
+        }
+
+        function testNetwork() {
+            log('开始测试网络连接...');
+            
+            // 测试基本网络连接
+            fetch('https://httpbin.org/get')
+                .then(response => {
+                    if (response.ok) {
+                        log('✓ 基本网络连接正常', 'success');
+                        return testMapTileAccess();
+                    } else {
+                        throw new Error('网络响应异常');
+                    }
+                })
+                .catch(error => {
+                    log(`✗ 网络连接测试失败: ${error.message}`, 'error');
+                    updateTestStatus('test-network', 'error', `网络连接失败: ${error.message}`);
+                });
+        }
+
+        function testMapTileAccess() {
+            log('测试地图瓦片访问...');
+            
+            const testUrls = [
+                'https://tile.openstreetmap.org/0/0/0.png',
+                'https://a.basemaps.cartocdn.com/light_all/0/0/0.png',
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/0/0/0'
+            ];
+            
+            let successCount = 0;
+            let totalCount = testUrls.length;
+            
+            testUrls.forEach((url, index) => {
+                fetch(url, { method: 'HEAD' })
+                    .then(response => {
+                        if (response.ok || response.status === 200) {
+                            successCount++;
+                            log(`✓ 地图源 ${index + 1} 可访问`, 'success');
+                        } else {
+                            log(`⚠ 地图源 ${index + 1} 响应异常: ${response.status}`, 'warning');
+                        }
+                    })
+                    .catch(error => {
+                        log(`✗ 地图源 ${index + 1} 访问失败: ${error.message}`, 'error');
+                    })
+                    .finally(() => {
+                        if (successCount + (totalCount - successCount) === totalCount) {
+                            if (successCount > 0) {
+                                log(`✓ 网络测试完成，${successCount}/${totalCount} 个地图源可访问`, 'success');
+                                updateTestStatus('test-network', 'success', `网络正常，${successCount}/${totalCount} 个地图源可访问`);
+                            } else {
+                                log('✗ 所有地图源都无法访问', 'error');
+                                updateTestStatus('test-network', 'error', '所有地图源都无法访问');
+                            }
+                        }
+                    });
+            });
+        }
+
+        function testMapSources() {
+            log('开始测试地图源...');
+            
+            if (!map) {
+                log('地图未初始化，跳过地图源测试', 'warning');
+                updateTestStatus('test-map-sources', 'warning', '地图未初始化');
+                return;
+            }
+            
+            const sources = [
+                { name: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' },
+                { name: 'CartoDB', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' },
+                { name: 'Esri', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}' }
+            ];
+            
+            let successCount = 0;
+            let totalCount = sources.length;
+            
+            sources.forEach((source, index) => {
+                try {
+                    const layer = L.tileLayer(source.url, {
+                        attribution: `© ${source.name}`,
+                        maxZoom: 19
+                    });
+                    
+                    layer.on('load', function() {
+                        successCount++;
+                        log(`✓ ${source.name} 加载成功`, 'success');
+                        checkTestCompletion();
+                    });
+                    
+                    layer.on('tileerror', function(e) {
+                        log(`✗ ${source.name} 瓦片加载失败`, 'error');
+                        checkTestCompletion();
+                    });
+                    
+                    layer.addTo(map);
+                    
+                    // 5秒后移除图层
+                    setTimeout(() => {
+                        map.removeLayer(layer);
+                    }, 5000);
+                    
+                } catch (error) {
+                    log(`✗ ${source.name} 初始化失败: ${error.message}`, 'error');
+                    checkTestCompletion();
+                }
+            });
+            
+            function checkTestCompletion() {
+                if (successCount + (totalCount - successCount) === totalCount) {
+                    if (successCount > 0) {
+                        log(`✓ 地图源测试完成，${successCount}/${totalCount} 个地图源可用`, 'success');
+                        updateTestStatus('test-map-sources', 'success', `${successCount}/${totalCount} 个地图源可用`);
+                    } else {
+                        log('✗ 所有地图源都无法使用', 'error');
+                        updateTestStatus('test-map-sources', 'error', '所有地图源都无法使用');
+                    }
+                }
+            }
+        }
+
+        function testBrowser() {
+            log('开始测试浏览器兼容性...');
+            
+            const tests = [
+                { name: 'Canvas支持', test: () => !!document.createElement('canvas').getContext },
+                { name: 'Fetch API', test: () => !!window.fetch },
+                { name: 'Promise支持', test: () => !!window.Promise },
+                { name: 'ES6支持', test: () => {
+                    try { eval('const test = () => {}'); return true; } catch(e) { return false; }
+                }},
+                { name: 'Touch事件', test: () => 'ontouchstart' in window },
+                { name: '设备像素比', test: () => !!window.devicePixelRatio }
+            ];
+            
+            let successCount = 0;
+            let totalCount = tests.length;
+            
+            tests.forEach(test => {
+                try {
+                    if (test.test()) {
+                        successCount++;
+                        log(`✓ ${test.name} 支持`, 'success');
+                    } else {
+                        log(`✗ ${test.name} 不支持`, 'error');
+                    }
+                } catch (error) {
+                    log(`✗ ${test.name} 测试失败: ${error.message}`, 'error');
+                }
+            });
+            
+            if (successCount === totalCount) {
+                log('✓ 浏览器兼容性测试通过', 'success');
+                updateTestStatus('test-browser', 'success', '浏览器兼容性良好');
+            } else {
+                log(`⚠ 浏览器兼容性测试部分通过 (${successCount}/${totalCount})`, 'warning');
+                updateTestStatus('test-browser', 'warning', `兼容性部分支持 (${successCount}/${totalCount})`);
+            }
+        }
+
+        function testData() {
+            log('开始测试数据加载...');
+            
+            fetch('data.json')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                })
+                .then(data => {
+                    if (Array.isArray(data) && data.length > 0) {
+                        log(`✓ 数据加载成功，共 ${data.length} 条记录`, 'success');
+                        updateTestStatus('test-data', 'success', `数据加载成功 (${data.length} 条)`);
+                    } else {
+                        throw new Error('数据格式不正确或为空');
+                    }
+                })
+                .catch(error => {
+                    log(`✗ 数据加载失败: ${error.message}`, 'error');
+                    updateTestStatus('test-data', 'error', `数据加载失败: ${error.message}`);
+                });
+        }
+
+        function runAllTests() {
+            log('开始运行所有测试...');
+            testLeaflet();
+            setTimeout(() => testNetwork(), 500);
+            setTimeout(() => testBrowser(), 1000);
+            setTimeout(() => testData(), 1500);
+            setTimeout(() => testMapSources(), 2000);
+        }
+
+        function initMap() {
+            try {
+                map = L.map('map', {
+                    center: [34.6109, 119.2153],
+                    zoom: 12,
+                    zoomControl: true
+                });
+                
+                log('地图初始化成功');
+                
+                // 添加默认图层
+                const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                });
+                
+                defaultLayer.addTo(map);
+                log('默认地图图层已添加');
+                
+            } catch (error) {
+                log(`地图初始化失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            log('页面加载完成，开始初始化...');
+            initMap();
+            
+            // 自动运行基本测试
+            setTimeout(() => {
+                testLeaflet();
+                testBrowser();
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 

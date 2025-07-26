@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简化地图测试</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            font-size: 12px;
+            max-width: 300px;
+        }
+        .controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        .btn {
+            margin: 5px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: #007cba;
+            color: white;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: #005a87;
+        }
+    </style>
+</head>
+<body>
+    <div class="status" id="status">正在初始化地图...</div>
+    <div class="controls">
+        <button class="btn" onclick="switchMapSource('osm')">OpenStreetMap</button>
+        <button class="btn" onclick="switchMapSource('cartodb')">CartoDB</button>
+        <button class="btn" onclick="switchMapSource('esri')">Esri</button>
+        <button class="btn" onclick="testData()">测试数据</button>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        let map;
+        let currentLayer;
+        let statusDiv = document.getElementById('status');
+
+        function updateStatus(message) {
+            statusDiv.textContent = message;
+            console.log(message);
+        }
+
+        function initMap() {
+            try {
+                updateStatus('初始化地图...');
+                
+                map = L.map('map', {
+                    center: [34.6109, 119.2153], // 连云港市中心
+                    zoom: 12,
+                    zoomControl: true
+                });
+
+                updateStatus('地图初始化成功，加载默认图层...');
+                
+                // 默认使用OpenStreetMap
+                switchMapSource('osm');
+                
+            } catch (error) {
+                updateStatus('地图初始化错误: ' + error.message);
+                console.error('地图初始化错误:', error);
+            }
+        }
+
+        function switchMapSource(source) {
+            if (!map) {
+                updateStatus('地图未初始化');
+                return;
+            }
+
+            // 移除当前图层
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+
+            let layer;
+            let sourceName;
+
+            switch (source) {
+                case 'osm':
+                    layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors',
+                        maxZoom: 19
+                    });
+                    sourceName = 'OpenStreetMap';
+                    break;
+                case 'cartodb':
+                    layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                        attribution: '© CartoDB',
+                        maxZoom: 19
+                    });
+                    sourceName = 'CartoDB';
+                    break;
+                case 'esri':
+                    layer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: '© Esri',
+                        maxZoom: 19
+                    });
+                    sourceName = 'Esri';
+                    break;
+                default:
+                    updateStatus('未知地图源');
+                    return;
+            }
+
+            updateStatus(`正在加载 ${sourceName}...`);
+
+            layer.on('load', function() {
+                updateStatus(`${sourceName} 加载成功！`);
+            });
+
+            layer.on('tileerror', function(e) {
+                updateStatus(`${sourceName} 瓦片加载失败: ${e.coords.x}, ${e.coords.y}, ${e.coords.z}`);
+                console.error('瓦片加载错误:', e);
+            });
+
+            layer.addTo(map);
+            currentLayer = layer;
+        }
+
+        function testData() {
+            if (!map) {
+                updateStatus('地图未初始化');
+                return;
+            }
+
+            updateStatus('加载测试数据...');
+
+            // 添加一些测试点
+            const testPoints = [
+                [34.6109, 119.2153, '连云港市中心'],
+                [34.6283, 119.2090, '测试点1'],
+                [34.6065, 119.2105, '测试点2'],
+                [34.5912, 119.2208, '测试点3']
+            ];
+
+            testPoints.forEach((point, index) => {
+                const marker = L.marker([point[0], point[1]]).addTo(map);
+                marker.bindPopup(`<b>测试点 ${index + 1}</b><br>${point[2]}<br>坐标: ${point[0]}, ${point[1]}`);
+            });
+
+            updateStatus(`已添加 ${testPoints.length} 个测试点`);
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus('页面加载完成，开始初始化地图...');
+            initMap();
+        });
+
+        // 错误处理
+        window.addEventListener('error', function(e) {
+            updateStatus('页面错误: ' + e.error.message);
+            console.error('页面错误:', e.error);
+        });
+
+        // 网络状态检测
+        window.addEventListener('online', function() {
+            updateStatus('网络连接已恢复');
+        });
+
+        window.addEventListener('offline', function() {
+            updateStatus('网络连接已断开');
+        });
+    </script>
+</body>
+</html> 

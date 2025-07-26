@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>连云港市案件热力图 - 移动端</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .mobile-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .mobile-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        
+        .mobile-header h1 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .mobile-header p {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .mobile-controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+        }
+        
+        .mobile-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            margin-bottom: 10px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 2000;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+</head>
+<body>
+    <div class="mobile-container">
+        <div class="mobile-header">
+            <h1>连云港市案件热力图</h1>
+            <p>移动端优化版本</p>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <div class="mobile-controls">
+                <button class="mobile-btn" onclick="toggleFullscreen()">⛶</button>
+                <button class="mobile-btn" onclick="refreshMap()">🔄</button>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>正在加载地图...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let heatmapLayer;
+        let isMobile = window.innerWidth <= 768;
+        
+        // 连云港市边界
+        const lianyungangBounds = [
+            [34.5, 119.0],  // 西南角
+            [34.8, 119.4]   // 东北角
+        ];
+        
+        function initMap() {
+            try {
+                map = L.map('map', {
+                    center: [34.6109, 119.2153],
+                    zoom: isMobile ? 11 : 12,
+                    minZoom: 10,
+                    maxZoom: 18,
+                    tap: true,
+                    tapTolerance: 15,
+                    zoomControl: true,
+                    attributionControl: true
+                });
+                
+                // 使用可靠的地图源
+                const layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19,
+                    subdomains: 'abc'
+                });
+                
+                layer.on('load', function() {
+                    console.log('地图加载成功');
+                    hideLoading();
+                });
+                
+                layer.on('tileerror', function(e) {
+                    console.error('地图瓦片加载失败:', e);
+                });
+                
+                layer.addTo(map);
+                
+                // 设置地图边界
+                map.setMaxBounds(lianyungangBounds);
+                
+                // 移动端优化
+                if (isMobile) {
+                    map.doubleClickZoom.disable();
+                }
+                
+                // 加载数据
+                loadData();
+                
+            } catch (error) {
+                console.error('地图初始化错误:', error);
+                hideLoading();
+                alert('地图初始化失败，请刷新页面重试');
+            }
+        }
+        
+        function loadData() {
+            fetch('data.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('数据加载失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('数据加载成功:', data.length, '条记录');
+                    createHeatmap(data);
+                })
+                .catch(error => {
+                    console.error('数据加载错误:', error);
+                    alert('数据加载失败，请检查网络连接');
+                });
+        }
+        
+        function createHeatmap(data) {
+            try {
+                // 转换数据格式
+                const heatmapData = data.map(item => [
+                    parseFloat(item.纬度),
+                    parseFloat(item.经度),
+                    1  // 权重
+                ]).filter(point => 
+                    !isNaN(point[0]) && !isNaN(point[1]) &&
+                    point[0] >= lianyungangBounds[0][0] && point[0] <= lianyungangBounds[1][0] &&
+                    point[1] >= lianyungangBounds[0][1] && point[1] <= lianyungangBounds[1][1]
+                );
+                
+                console.log('有效数据点:', heatmapData.length);
+                
+                if (heatmapData.length > 0) {
+                    // 创建热力图
+                    heatmapLayer = L.heatLayer(heatmapData, {
+                        radius: 25,
+                        blur: 15,
+                        maxZoom: 10,
+                        gradient: {
+                            0.4: 'blue',
+                            0.6: 'lime',
+                            0.8: 'orange',
+                            1.0: 'red'
+                        }
+                    }).addTo(map);
+                    
+                    console.log('热力图创建成功');
+                } else {
+                    console.warn('没有有效的数据点');
+                }
+                
+            } catch (error) {
+                console.error('热力图创建错误:', error);
+            }
+        }
+        
+        function hideLoading() {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        function refreshMap() {
+            if (map) {
+                map.invalidateSize();
+                if (heatmapLayer) {
+                    map.removeLayer(heatmapLayer);
+                    loadData();
+                }
+            }
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，开始初始化地图...');
+            initMap();
+        });
+        
+        // 窗口大小改变时重新调整地图
+        window.addEventListener('resize', function() {
+            if (map) {
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            }
+        });
+    </script>
+</body>
+</html>

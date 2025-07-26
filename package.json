@@ -1,0 +1,17 @@
+{
+  "name": "lianyungang-heatmap",
+  "version": "1.0.0",
+  "description": "连云港市案件热力图分析系统",
+  "main": "index.html",
+  "scripts": {
+    "start": "python server.py",
+    "build": "echo 'No build step required'",
+    "deploy": "vercel --prod"
+  },
+  "keywords": ["heatmap", "lianyungang", "crime-analysis", "mobile"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}

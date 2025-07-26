@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地图显示测试</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #f5f5f5;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+        }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+        }
+
+        .map-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: 1 !important;
+        }
+
+        .leaflet-container {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .test-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            font-size: 12px;
+        }
+
+        .btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background: #005a87;
+        }
+
+        /* 移动端样式 */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: 200px;
+                border-right: none;
+                border-bottom: 1px solid #ddd;
+            }
+
+            .main-content {
+                height: calc(100vh - 200px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>地图显示测试</h2>
+            <p>这个页面用于测试地图是否正确显示，没有被遮挡。</p>
+            
+            <div class="test-info">
+                <strong>测试信息:</strong><br>
+                <span id="map-status">正在初始化地图...</span><br>
+                <span id="map-size">地图尺寸: 计算中...</span>
+            </div>
+
+            <button class="btn" onclick="testMapSize()">测试地图尺寸</button>
+            <button class="btn" onclick="testMapVisibility()">测试地图可见性</button>
+            <button class="btn" onclick="refreshMap()">刷新地图</button>
+        </div>
+
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+
+        function updateStatus(message) {
+            document.getElementById('map-status').textContent = message;
+            console.log(message);
+        }
+
+        function updateMapSize() {
+            if (map) {
+                const size = map.getSize();
+                document.getElementById('map-size').textContent = `地图尺寸: ${size.x} x ${size.y}`;
+            }
+        }
+
+        function initMap() {
+            try {
+                updateStatus('初始化地图...');
+                
+                map = L.map('map', {
+                    center: [34.6109, 119.2153],
+                    zoom: 12,
+                    zoomControl: true
+                });
+
+                // 添加地图图层
+                const layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                });
+
+                layer.on('load', function() {
+                    updateStatus('地图加载成功');
+                    updateMapSize();
+                });
+
+                layer.on('tileerror', function(e) {
+                    updateStatus('地图瓦片加载失败');
+                    console.error('瓦片加载错误:', e);
+                });
+
+                layer.addTo(map);
+
+                // 添加一些测试标记
+                const testMarkers = [
+                    [34.6109, 119.2153, '连云港市中心'],
+                    [34.6283, 119.2090, '测试点1'],
+                    [34.6065, 119.2105, '测试点2']
+                ];
+
+                testMarkers.forEach((point, index) => {
+                    const marker = L.marker([point[0], point[1]]).addTo(map);
+                    marker.bindPopup(`<b>测试点 ${index + 1}</b><br>${point[2]}`);
+                });
+
+                updateStatus('地图初始化完成');
+                updateMapSize();
+
+            } catch (error) {
+                updateStatus('地图初始化失败: ' + error.message);
+                console.error('地图初始化错误:', error);
+            }
+        }
+
+        function testMapSize() {
+            if (map) {
+                const size = map.getSize();
+                const container = document.getElementById('map');
+                const rect = container.getBoundingClientRect();
+                
+                console.log('地图尺寸:', size);
+                console.log('容器尺寸:', rect);
+                console.log('容器样式:', window.getComputedStyle(container));
+                
+                updateMapSize();
+                updateStatus('地图尺寸测试完成');
+            } else {
+                updateStatus('地图未初始化');
+            }
+        }
+
+        function testMapVisibility() {
+            const container = document.getElementById('map');
+            const rect = container.getBoundingClientRect();
+            
+            console.log('地图容器可见性测试:');
+            console.log('display:', window.getComputedStyle(container).display);
+            console.log('visibility:', window.getComputedStyle(container).visibility);
+            console.log('opacity:', window.getComputedStyle(container).opacity);
+            console.log('z-index:', window.getComputedStyle(container).zIndex);
+            console.log('位置:', rect);
+            
+            updateStatus('地图可见性测试完成');
+        }
+
+        function refreshMap() {
+            if (map) {
+                map.invalidateSize();
+                setTimeout(() => {
+                    updateMapSize();
+                    updateStatus('地图已刷新');
+                }, 100);
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus('页面加载完成，开始初始化地图...');
+            initMap();
+        });
+
+        // 窗口大小改变时重新调整地图
+        window.addEventListener('resize', function() {
+            if (map) {
+                setTimeout(() => {
+                    map.invalidateSize();
+                    updateMapSize();
+                }, 100);
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,24 @@
+{
+  "project_name": "lianyungang-heatmap",
+  "deploy_methods": {
+    "vercel": {
+      "enabled": true,
+      "command": "vercel --prod"
+    },
+    "netlify": {
+      "enabled": true,
+      "command": "netlify deploy --prod"
+    },
+    "github_pages": {
+      "enabled": true,
+      "command": "gh-pages -d ."
+    }
+  },
+  "files_to_deploy": [
+    "index.html",
+    "data.json",
+    "*.css",
+    "*.js",
+    "*.md"
+  ]
+}
